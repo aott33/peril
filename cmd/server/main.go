@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/aott33/peril/internal/gamelogic"
 	"github.com/aott33/peril/internal/pubsub"
 	"github.com/aott33/peril/internal/routing"
 
@@ -32,16 +33,50 @@ func main() {
 		return
 	}
 
-	err = pubsub.PublishJSON(connChannel, 
-		string(routing.ExchangePerilDirect), 
-		string(routing.PauseKey),
-		routing.PlayingState{
-			IsPaused: true,
-		},
-	)
-	if err != nil {
-		fmt.Println("Couldn't publish json", err)
-		return
+	gamelogic.PrintServerHelp()
+
+	for {
+		commands := gamelogic.GetInput()
+		command := commands[0]
+		
+		switch command {
+		case "pause":
+			fmt.Println("Sending pause message")
+			err = pubsub.PublishJSON(
+				connChannel, 
+				string(routing.ExchangePerilDirect), 
+				string(routing.PauseKey),
+				routing.PlayingState{
+						IsPaused: true,
+					},
+				)
+			if err != nil {
+				fmt.Println("Couldn't publish json", err)
+				return
+			}
+		case "resume":
+			fmt.Println("Sending resume message")
+			err = pubsub.PublishJSON(
+				connChannel, 
+				string(routing.ExchangePerilDirect), 
+				string(routing.PauseKey),
+				routing.PlayingState{
+						IsPaused: false,
+					},
+				)
+			if err != nil {
+				fmt.Println("Couldn't publish json", err)
+				return
+			}
+		case "quit":
+			fmt.Println("Exiting")
+		default:
+			fmt.Println("Don't understand command")
+		}
+
+		if command == "quit" {
+			break
+		}
 	}
 
 	// wait for ctrl+c
