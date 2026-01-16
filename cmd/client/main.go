@@ -49,29 +49,27 @@ func main() {
 
 	gameState := gamelogic.NewGameState(username)
 
-	gamelogic.PrintClientHelp()	
-
 	for {
 		words := gamelogic.GetInput()
 		command := words[0]
 		
 		switch command {
 		case "spawn":
-			fmt.Println("Spawning requested...")
+			fmt.Println("Spawn requested...")
 
 			err = gameState.CommandSpawn(words)
 			if err != nil {
-				fmt.Println("Spawn error:", err)
+				fmt.Println(err)
 			}
 
 		case "move":
 			fmt.Println("Move requested...")
 			
-			move, err := gameState.CommandMove(words)
+			_, err = gameState.CommandMove(words)
 			if err != nil {
-				fmt.Println("Move error:", err)
+				fmt.Println(err)
 			} else {
-				fmt.Println("Move Successful to...", move.ToLocation)
+				fmt.Println("Move Successful!")
 			}
 
 		case "status":
