@@ -33,6 +33,20 @@ func main() {
 		return
 	}
 
+	routingKey := fmt.Sprintf("%s.*", routing.GameLogSlug)
+	
+	_, _, err = pubsub.DeclareAndBind(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routingKey,
+		pubsub.Durable(),
+	)
+	if err != nil {
+		fmt.Println("Declare and bind queue error", err)
+		return
+	}
+
 	gamelogic.PrintServerHelp()
 
 	for {
