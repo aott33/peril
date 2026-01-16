@@ -47,6 +47,59 @@ func main() {
 		return
 	}
 
+	gameState := gamelogic.NewGameState(username)
+
+	gamelogic.PrintClientHelp()	
+
+	for {
+		words := gamelogic.GetInput()
+		command := words[0]
+		
+		switch command {
+		case "spawn":
+			fmt.Println("Spawning requested...")
+
+			err = gameState.CommandSpawn(words)
+			if err != nil {
+				fmt.Println("Spawn error:", err)
+			}
+
+		case "move":
+			fmt.Println("Move requested...")
+			
+			move, err := gameState.CommandMove(words)
+			if err != nil {
+				fmt.Println("Move error:", err)
+			} else {
+				fmt.Println("Move Successful to...", move.ToLocation)
+			}
+
+		case "status":
+			fmt.Println("Status requested...")
+
+			gameState.CommandStatus()
+
+		case "help":
+			fmt.Println("Help requested...")
+
+			gamelogic.PrintClientHelp()
+
+		case "spam":
+			fmt.Println("Spamming not allowed yet...")
+
+		case "quit":
+			gamelogic.PrintQuit()
+
+		default:
+			fmt.Println("Don't understand command")
+		}
+
+		if command == "quit" {
+			break
+		}
+	}
+
+
 	// wait for ctrl+c
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
