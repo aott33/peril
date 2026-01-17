@@ -33,21 +33,41 @@ func main() {
 		return
 	}
 
+	gameState := gamelogic.NewGameState(username)
+	
 	queueName := fmt.Sprintf("%s.%s", routing.PauseKey, username)
+	handler := handlerPause(gameState)
 
-	_, _, err = pubsub.DeclareAndBind(
+	err = pubsub.SubscribeJSON(
 		connection,
 		routing.ExchangePerilDirect,
 		queueName,
 		routing.PauseKey,
 		pubsub.Transient(),
+		handler,
 	)
 	if err != nil {
-		fmt.Println("Declare and bind queue error", err)
+		fmt.Println("Subscribe error", err)
 		return
 	}
 
-	gameState := gamelogic.NewGameState(username)
+	done := make(chan struct{})
+
+	// listen for Ctrl+C
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+
+	go func() {
+    	<-signalChan              // wait for Ctrl+C
+    	fmt.Println("\nCtrl+C pressed, shutting down...")
+    	
+		select {
+		case <-done:
+
+		default:
+			close(done)
+		}
+	}()
 
 	for {
 		words := gamelogic.GetInput()
@@ -87,21 +107,22 @@ func main() {
 
 		case "quit":
 			gamelogic.PrintQuit()
+			close(done)
+			return
 
 		default:
 			fmt.Println("Don't understand command")
 		}
-
-		if command == "quit" {
-			break
-		}
 	}
 
 
-	// wait for ctrl+c
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	s := <-signalChan
-	fmt.Println("\nShutting down:", s)
+	fmt.Println("\nShutting down")
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
+	}
 }
 
