@@ -26,6 +26,12 @@ func main() {
 	defer connection.Close()
 
 	fmt.Println("Connection Successful!")
+	
+	connChannel, err := connection.Channel()
+	if err != nil {
+		fmt.Println("Couldn't create connection channel", err)
+		return
+	}
 
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
@@ -48,6 +54,24 @@ func main() {
 	)
 	if err != nil {
 		fmt.Println("Subscribe error", err)
+		return
+	}
+
+
+	armyMovesQueueName := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username)
+	armyMovesRoutingKey := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, "*")
+	moveHandler := handlerMove(gameState)
+
+	err = pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilTopic,
+		armyMovesQueueName,
+		armyMovesRoutingKey,
+		pubsub.Transient(),
+		moveHandler,
+	)
+	if err != nil {
+		fmt.Println("Subscribe to move error", err)
 		return
 	}
 
@@ -85,11 +109,23 @@ func main() {
 		case "move":
 			fmt.Println("Move requested...")
 			
-			_, err = gameState.CommandMove(words)
+			move, err := gameState.CommandMove(words)
 			if err != nil {
 				fmt.Println(err)
 			} else {
 				fmt.Println("Move Successful!")
+			}
+
+			err = pubsub.PublishJSON(
+				connChannel,
+				string(routing.ExchangePerilTopic),
+				armyMovesRoutingKey,
+				move,
+			)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println("Publish Move Successful!")
 			}
 
 		case "status":
@@ -126,3 +162,9 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
 	}
 }
 
+func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) {
+	return func(move gamelogic.ArmyMove) {
+		defer fmt.Print("> ")
+		gs.HandleMove(move)
+	}
+}
