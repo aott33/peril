@@ -57,10 +57,9 @@ func main() {
 		return
 	}
 
-
 	armyMovesQueueName := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username)
-	armyMovesRoutingKey := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, "*")
-	moveHandler := handlerMove(gameState)
+	armyMovesRoutingKey := fmt.Sprintf("%s.*", routing.ArmyMovesPrefix)
+	moveHandler := handlerMove(gameState, connChannel)
 
 	err = pubsub.SubscribeJSON(
 		connection,
@@ -75,6 +74,23 @@ func main() {
 		return
 	}
 
+	warMessagesQueueName := "war"
+	warMessagesRoutingKey := fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix)
+	warMessagesHandler := handleWarMessages(gameState)
+
+	err = pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilTopic,
+		warMessagesQueueName,
+		warMessagesRoutingKey,
+		pubsub.Durable,
+		warMessagesHandler,
+	)
+	if err != nil {
+		fmt.Println("Subscribe to war messages error", err)
+		return
+	}
+
 	done := make(chan struct{})
 
 	// listen for Ctrl+C
@@ -82,21 +98,21 @@ func main() {
 	signal.Notify(signalChan, os.Interrupt)
 
 	go func() {
-    	<-signalChan              // wait for Ctrl+C
-    	fmt.Println("\nCtrl+C pressed, shutting down...")
-    	
-		select {
-		case <-done:
-
-		default:
-			close(done)
-		}
+    	<-signalChan
+		fmt.Println("\nCtrl+C pressed, shutting down...")
+		os.Exit(0)
 	}()
 
 	loop:
 	for {
 		words := gamelogic.GetInput()
 		command := words[0]
+
+		select {
+    	case <-done:
+        	break loop
+    	default:
+    	}
 		
 		switch command {
 		case "spawn":
@@ -116,11 +132,12 @@ func main() {
 			} else {
 				fmt.Println("Move Successful!")
 			}
-
+			
+			armyMovePublishKey := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username)
 			err = pubsub.PublishJSON(
 				connChannel,
 				string(routing.ExchangePerilTopic),
-				armyMovesRoutingKey,
+				armyMovePublishKey,
 				move,
 			)
 			if err != nil {
@@ -144,7 +161,6 @@ func main() {
 
 		case "quit":
 			gamelogic.PrintQuit()
-			close(done)
 			break loop
 		default:
 			fmt.Println("Don't understand command")
@@ -153,24 +169,4 @@ func main() {
 
 
 	fmt.Println("Have a good day")
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.AckType {
-	return func(ps routing.PlayingState) pubsub.AckType {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
-		return pubsub.Ack
-	}
-}
-
-func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.AckType {
-	return func(move gamelogic.ArmyMove) pubsub.AckType {
-		defer fmt.Print("> ")
-		moveOutcome := gs.HandleMove(move)
-		if moveOutcome == gamelogic.MoveOutComeSafe || moveOutcome == gamelogic.MoveOutcomeMakeWar {
-			return pubsub.Ack
-		} else {
-			return pubsub.NackDiscard
-		}
-	}
 }
