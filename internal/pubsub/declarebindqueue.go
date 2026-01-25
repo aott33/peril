@@ -4,21 +4,6 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type SimpleQueueType int
-
-const (
-	durable SimpleQueueType = iota
-	transient
-)
-
-func Durable() SimpleQueueType {
-	return durable
-}
-
-func Transient() SimpleQueueType {
-	return transient
-}
-
 func DeclareAndBind(
 	conn *amqp.Connection,
 	exchange,
@@ -35,12 +20,12 @@ func DeclareAndBind(
 	}
 
 	isDurable := false
-	if queueType == durable {
+	if queueType == Durable {
 		isDurable = true
 	}
 
 	isTransient := false 
-	if queueType == transient {
+	if queueType == Transient {
 		isTransient = true
 	}
 
@@ -50,7 +35,9 @@ func DeclareAndBind(
 		isTransient,
 		isTransient,
 		false,
-		nil,
+		amqp.Table{
+			"x-dead-letter-exchange": "peril_dlx",
+		},
 	)
 	if err != nil {
 		return nil, queue, err

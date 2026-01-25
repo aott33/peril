@@ -40,62 +40,87 @@ func main() {
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routingKey,
-		pubsub.Durable(),
+		pubsub.Durable,
 	)
 	if err != nil {
 		fmt.Println("Declare and bind queue error", err)
 		return
 	}
 
+	done := make(chan struct{})
+
+	// listen for Ctrl+C
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+
+	go func() {
+    	<-signalChan              // wait for Ctrl+C
+    	fmt.Println("\nCtrl+C pressed, shutting down...")
+    	
+		select {
+		case <-done:
+
+		default:
+			close(done)
+		}
+	}()
+
 	gamelogic.PrintServerHelp()
 
+	loop:
 	for {
-		commands := gamelogic.GetInput()
-		command := commands[0]
-		
-		switch command {
-		case "pause":
-			fmt.Println("Sending pause message")
-			err = pubsub.PublishJSON(
-				connChannel, 
-				string(routing.ExchangePerilDirect), 
-				string(routing.PauseKey),
-				routing.PlayingState{
-						IsPaused: true,
-					},
-				)
-			if err != nil {
-				fmt.Println("Couldn't publish json", err)
-				return
-			}
-		case "resume":
-			fmt.Println("Sending resume message")
-			err = pubsub.PublishJSON(
-				connChannel, 
-				string(routing.ExchangePerilDirect), 
-				string(routing.PauseKey),
-				routing.PlayingState{
-						IsPaused: false,
-					},
-				)
-			if err != nil {
-				fmt.Println("Couldn't publish json", err)
-				return
-			}
-		case "quit":
-			fmt.Println("Exiting")
+		select {
+		case <-done:
+			return
 		default:
-			fmt.Println("Don't understand command")
-		}
-
-		if command == "quit" {
-			break
+			commands := gamelogic.GetInput()
+			if len(commands) == 0 {
+				continue
+			}
+			command := commands[0]
+		
+			switch command {
+			case "pause":
+				fmt.Println("Sending pause message")
+				err = pubsub.PublishJSON(
+					connChannel, 
+					string(routing.ExchangePerilDirect), 
+					string(routing.PauseKey),
+					routing.PlayingState{
+							IsPaused: true,
+						},
+					)
+				if err != nil {
+					fmt.Println("Couldn't publish json", err)
+					return
+				}
+			case "resume":
+				fmt.Println("Sending resume message")
+				err = pubsub.PublishJSON(
+					connChannel, 
+					string(routing.ExchangePerilDirect), 
+					string(routing.PauseKey),
+					routing.PlayingState{
+							IsPaused: false,
+						},
+					)
+				if err != nil {
+					fmt.Println("Couldn't publish json", err)
+					return
+				}
+			case "quit":
+            	gamelogic.PrintQuit()
+            	select {
+           		case <-done:
+            	default:
+                	close(done)
+            	}
+            	break loop
+			default:
+				fmt.Println("Don't understand command")
+			}
 		}
 	}
 
-	// wait for ctrl+c
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	s := <-signalChan
-	fmt.Println("\nShutting down:", s)
+	fmt.Println("Have a good day")
 }

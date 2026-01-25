@@ -13,7 +13,7 @@ func SubscribeJSON[T any](
     queueName,
     key string,
     queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-    handler func(T),
+    handler func(T)(AckType),
 ) error {
 	ch, queue, err:= DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
@@ -34,8 +34,22 @@ func SubscribeJSON[T any](
 				fmt.Println(unmarshalErr)
 				continue
 			}
-			handler(body)
-			msg.Ack(false)
+			achtype := handler(body)
+			
+			switch achtype {
+			case Ack:
+				msg.Ack(false)
+				fmt.Println("Ack Occured")
+			case NackRequeue:
+				msg.Nack(false, true)
+				fmt.Println("Nack Requeue Occured")
+			case NackDiscard:
+				msg.Nack(true, false)
+				fmt.Println("Nack Discard Occured")
+			}
+
+			fmt.Print("> ")
+
 		}
 	}()
 
