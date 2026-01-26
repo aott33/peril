@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"time"
 
 	"github.com/aott33/peril/internal/gamelogic"
 	"github.com/aott33/peril/internal/pubsub"
@@ -76,7 +78,7 @@ func main() {
 
 	warMessagesQueueName := "war"
 	warMessagesRoutingKey := fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix)
-	warMessagesHandler := handleWarMessages(gameState)
+	warMessagesHandler := handleWarMessages(gameState, connChannel)
 
 	err = pubsub.SubscribeJSON(
 		connection,
@@ -157,7 +159,29 @@ func main() {
 			gamelogic.PrintClientHelp()
 
 		case "spam":
-			fmt.Println("Spamming not allowed yet...")
+			if len(words) < 2 {
+				fmt.Println("Specify number. For example... spam 10")
+				continue
+			}
+			n := words[1]
+			intN, err := strconv.Atoi(n)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			for range intN {
+				msg := gamelogic.GetMaliciousLog()
+				gl := routing.GameLog{
+					Username: username,
+					CurrentTime: time.Now(),
+					Message: msg,
+				}
+				err = pubsub.PublishGameLog(connChannel, gl)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+			}
 
 		case "quit":
 			gamelogic.PrintQuit()

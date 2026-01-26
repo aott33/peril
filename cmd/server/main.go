@@ -34,16 +34,17 @@ func main() {
 	}
 
 	routingKey := fmt.Sprintf("%s.*", routing.GameLogSlug)
-	
-	_, _, err = pubsub.DeclareAndBind(
+	handler := handlerLogs()
+	err = pubsub.SubscribeGob(
 		connection,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routingKey,
 		pubsub.Durable,
+		handler,
 	)
 	if err != nil {
-		fmt.Println("Declare and bind queue error", err)
+		fmt.Println("Subscribe error", err)
 		return
 	}
 

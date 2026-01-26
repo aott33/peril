@@ -1,13 +1,14 @@
 package pubsub
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/gob"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func SubscribeJSON[T any](
+func SubscribeGob[T any](
     conn *amqp.Connection,
     exchange,
     queueName,
@@ -34,14 +35,17 @@ func SubscribeJSON[T any](
 	go func() {
 		for msg := range msgs {
 			var body T
-			unmarshalErr := json.Unmarshal(msg.Body, &body)
-			if unmarshalErr != nil {
-				fmt.Println(unmarshalErr)
+			reader := bytes.NewReader(msg.Body)
+			decoder := gob.NewDecoder(reader)
+
+			err = decoder.Decode(&body)
+			if err != nil {
+				fmt.Println(err)
 				continue
 			}
-			achtype := handler(body)
+			acktype := handler(body)
 			
-			switch achtype {
+			switch acktype {
 			case Ack:
 				msg.Ack(false)
 				fmt.Println("Ack Occured")
@@ -60,3 +64,4 @@ func SubscribeJSON[T any](
 
 	return nil
 }
+
